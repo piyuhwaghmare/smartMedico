@@ -1,0 +1,106 @@
+═══════════════════════════════════════════════════════════════
+  MEDICAL RESEARCH AGENT - QUICK START
+═══════════════════════════════════════════════════════════════
+
+📋 STEP 1: CHECK OLLAMA
+──────────────────────────────────────────────────────────────
+Make sure Ollama is running with the model:
+  
+  ollama pull qwen3:8b
+  ollama list
+
+If Ollama is on a different server, edit agents/config.py:
+  OLLAMA_BASE_URL = "http://YOUR_IP:11434"
+
+
+🚀 STEP 2: START SERVER (Choose one method)
+──────────────────────────────────────────────────────────────
+
+METHOD A - Double-click:
+  run_medical.bat
+
+METHOD B - Command line:
+  cd d:\System_Design\langchain-langgraph-deep-agent-patterns
+  run_medical.bat
+
+METHOD C - Manual:
+  pip install -r requirements.txt
+  python -m uvicorn servers.fastapi_server:app --port 8000 --reload
+
+
+🌐 STEP 3: OPEN BROWSER
+──────────────────────────────────────────────────────────────
+  
+  Medical UI:  http://localhost:8000/
+  
+  (Old demo UI is at http://localhost:8000/demo if you need it)
+
+
+✅ STEP 4: TEST IT
+──────────────────────────────────────────────────────────────
+
+Type in the UI:
+  "I have a severe headache for 3 days with nausea and light sensitivity"
+
+What happens:
+  1. Agent analyzes symptoms ✓
+  2. Agent searches PubMed ✓
+  3. Agent creates summary ✓
+  4. Doctor review modal pops up ✓
+  5. Click Accept ✓ or Reject ❌
+  6. If rejected → Agent refines and searches again
+
+
+🎯 WHAT'S WORKING
+──────────────────────────────────────────────────────────────
+✅ Patient symptom input
+✅ Real PubMed API search
+✅ Doctor review (Human-in-the-Loop)
+✅ Feedback-based refinement
+✅ Research file storage
+✅ Decision tracking (basic learning)
+
+
+📚 NEED HELP?
+──────────────────────────────────────────────────────────────
+
+Full setup guide:     MEDICAL_SETUP.md
+All changes:          CHANGES_SUMMARY.md
+Project description:  README.md
+
+Common issues:
+  ❌ "Connection refused" 
+     → Check if Ollama is running
+     → Check agents/config.py OLLAMA_BASE_URL
+  
+  ❌ "PubMed rate limit"
+     → Get free API key from https://www.ncbi.nlm.nih.gov/account/
+     → Set: set PUBMED_API_KEY=your_key
+  
+  ❌ Modal not showing
+     → Open browser console (F12)
+     → Check for JavaScript errors
+     → Refresh page
+
+
+🔗 API ENDPOINTS
+──────────────────────────────────────────────────────────────
+
+Medical query:
+  POST http://localhost:8000/api/medical/stream
+  Body: {"message": "symptoms...", "thread_id": "optional"}
+
+Resume after doctor review:
+  POST http://localhost:8000/api/resume/{thread_id}
+  Body: {"choice": "Accept" or "Reject - reason"}
+
+Get feedback history:
+  GET http://localhost:8000/api/threads/{thread_id}/feedback
+
+API docs (Swagger):
+  http://localhost:8000/docs
+
+
+═══════════════════════════════════════════════════════════════
+ Questions? Check MEDICAL_SETUP.md or CHANGES_SUMMARY.md
+═══════════════════════════════════════════════════════════════

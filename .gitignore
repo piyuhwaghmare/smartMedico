@@ -1,0 +1,16 @@
+# Ignore the Python virtual environment
+venv/
+.venv/
+ENV/
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+
+# Ignore environment variables / secrets
+.env
+.env.example
+
+*.exe
+OllamaSetup.exe
+Docker Desktop Installer.exe

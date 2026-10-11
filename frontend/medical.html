@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Medical Research Agent - AI-Powered Diagnosis Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a1628;
+      --s1:        #132039;
+      --s2:        #1a2d4d;
+      --s3:        #234063;
+      --border:    #2d4a6e;
+      --blue:      #4a9eff;
+      --green:     #10b981;
+      --red:       #ef4444;
+      --yellow:    #f59e0b;
+      --purple:    #8b5cf6;
+      --text:      #e2e8f0;
+      --muted:     #94a3b8;
+      --subtle:    #64748b;
+      --font:      'Inter', sans-serif;
+      --mono:      'JetBrains Mono', monospace;
+    }
+
+    html, body, #root { height: 100%; overflow: hidden; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      background-image:
+        radial-gradient(circle at 20% 50%, rgba(74,158,255,0.05) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(16,185,129,0.05) 0%, transparent 50%);
+    }
+
+    /* ── Layout ─────────────────────────────────────────────── */
+    .app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 24px; height: 60px;
+      background: var(--s1);
+      border-bottom: 2px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, #10b981, #059669);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+    .brand-text h1 {
+      font-size: 18px; font-weight: 700; color: var(--text);
+      letter-spacing: -0.5px;
+    }
+    .brand-text p {
+      font-size: 11px; color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .status {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; color: var(--muted);
+    }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--subtle);
+    }
+    .status-dot--active {
+      background: var(--green);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* ── Main ───────────────────────────────────────────────── */
+    .main {
+      display: flex; flex: 1; overflow: hidden;
+    }
+
+    .chat {
+      display: flex; flex-direction: column; flex: 1;
+      border-right: 1px solid var(--border);
+    }
+
+    .messages {
+      flex: 1; overflow-y: auto; padding: 24px;
+      scrollbar-width: thin; scrollbar-color: var(--s3) transparent;
+    }
+
+    .empty {
+      max-width: 500px; margin: auto; text-align: center; padding: 60px 20px;
+    }
+    .empty-icon { font-size: 60px; margin-bottom: 20px; }
+    .empty h2 { font-size: 20px; font-weight: 600; color: var(--text); margin-bottom: 12px; }
+    .empty p { font-size: 14px; color: var(--muted); line-height: 1.6; margin-bottom: 24px; }
+    .empty-examples {
+      display: flex; flex-direction: column; gap: 8px;
+      text-align: left;
+    }
+    .example {
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .example:hover {
+      background: rgba(255,255,255,0.06);
+      border-color: var(--blue);
+      color: var(--text);
+    }
+
+    /* ── Messages ───────────────────────────────────────────── */
+    .msg {
+      max-width: 85%; margin-bottom: 16px;
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } }
+
+    .msg--user {
+      margin-left: auto;
+      background: linear-gradient(135deg, #1e3a8a, #1e40af);
+      border: 1px solid rgba(74,158,255,0.3);
+      border-radius: 16px 4px 16px 16px;
+      padding: 12px 16px;
+    }
+    .msg--user .label { font-size: 10px; font-weight: 600; color: var(--blue); text-transform: uppercase; margin-bottom: 6px; }
+    .msg--user .content { font-size: 14px; line-height: 1.6; color: var(--text); }
+
+    .msg--ai {
+      background: linear-gradient(135deg, #065f46, #047857);
+      border: 1px solid rgba(16,185,129,0.3);
+      border-radius: 4px 16px 16px 16px;
+      padding: 12px 16px;
+      position: relative;
+    }
+    .msg--ai::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: var(--green);
+      border-radius: 16px 0 0 16px;
+    }
+    .msg--ai .label {
+      font-size: 10px; font-weight: 600; color: var(--green);
+      text-transform: uppercase; margin-bottom: 6px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .msg--ai .content { font-size: 14px; line-height: 1.7; color: var(--text); white-space: pre-wrap; }
+
+    .msg--tool {
+      width: 100%;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--yellow);
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+    .tool-name { font-weight: 600; color: var(--yellow); }
+    .tool-phase { color: var(--muted); margin-left: 8px; }
+    .tool-output { color: var(--subtle); margin-top: 4px; font-size: 11px; }
+
+    .msg--error {
+      width: 100%;
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-left: 3px solid var(--red);
+      border-radius: 6px;
+      padding: 12px 16px;
+    }
+    .msg--error .label { font-size: 11px; font-weight: 600; color: var(--red); margin-bottom: 6px; }
+    .msg--error .content { font-size: 13px; color: var(--muted); font-family: var(--mono); }
+
+    /* ── Input ──────────────────────────────────────────────── */
+    .input-area {
+      padding: 20px 24px;
+      background: var(--s1);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .input-label {
+      font-size: 12px; font-weight: 600; color: var(--muted);
+      margin-bottom: 10px;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .input-row { display: flex; gap: 12px; }
+    .input-wrap {
+      flex: 1;
+      background: var(--bg);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      transition: border-color 0.2s;
+    }
+    .input-wrap:focus-within { border-color: var(--green); }
+    .textarea {
+      width: 100%; min-height: 80px;
+      background: transparent; border: none; outline: none;
+      font-family: var(--font); font-size: 14px; line-height: 1.6;
+      color: var(--text); padding: 14px 16px;
+      resize: vertical;
+    }
+    .textarea::placeholder { color: var(--subtle); }
+
+    .send-btn {
+      height: 48px; padding: 0 28px;
+      background: linear-gradient(135deg, #10b981, #059669);
+      border: none; border-radius: 10px;
+      font-family: var(--font); font-size: 14px; font-weight: 600;
+      color: white; cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .send-btn:hover:not(:disabled) {
+      background: linear-gradient(135deg, #059669, #047857);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(16,185,129,0.3);
+    }
+    .send-btn:disabled {
+      opacity: 0.4; cursor: not-allowed;
+    }
+
+    /* ── Sidebar ────────────────────────────────────────────── */
+    .sidebar {
+      width: 320px; flex-shrink: 0;
+      background: var(--s1);
+      display: flex; flex-direction: column;
+    }
+
+    .sidebar-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px; font-weight: 600;
+      color: var(--text);
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+
+    .sidebar-content {
+      flex: 1; overflow-y: auto; padding: 16px;
+    }
+
+    .panel {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .panel-title {
+      font-size: 11px; font-weight: 600;
+      color: var(--muted); text-transform: uppercase;
+      margin-bottom: 10px; letter-spacing: 0.5px;
+    }
+    .panel-empty {
+      font-size: 12px; color: var(--subtle);
+      font-style: italic;
+    }
+
+    .todo-list { display: flex; flex-direction: column; gap: 6px; }
+    .todo {
+      display: flex; gap: 8px;
+      padding: 8px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 6px;
+      font-size: 12px; color: var(--muted);
+    }
+
+    .file-list { display: flex; flex-direction: column; gap: 4px; }
+    .file {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 6px 10px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-size: 11px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .file:hover { background: rgba(255,255,255,0.06); }
+    .file-name { color: var(--green); }
+    .file-icon { color: var(--subtle); }
+
+    /* ── Modal ──────────────────────────────────────────────── */
+    .modal {
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center;
+      animation: fadeIn 0.2s ease;
+    }
+
+    .modal-card {
+      background: var(--s1);
+      border: 2px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      width: 500px;
+      max-width: calc(100vw - 40px);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      animation: slideUp 0.3s ease;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+    }
+
+    .modal-header {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 20px;
+    }
+    .modal-icon {
+      width: 40px; height: 40px;
+      background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+    .modal-title {
+      flex: 1;
+      font-size: 16px; font-weight: 600;
+      color: var(--text);
+    }
+    .modal-subtitle {
+      font-size: 11px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+
+    .modal-body {
+      margin-bottom: 24px;
+    }
+    .modal-text {
+      font-size: 14px; line-height: 1.7;
+      color: var(--muted);
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .modal-actions {
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .modal-btn {
+      padding: 12px 20px;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      font-family: var(--font);
+      font-size: 14px; font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: left;
+      background: rgba(255,255,255,0.02);
+      color: var(--text);
+    }
+    .modal-btn:hover {
+      background: rgba(255,255,255,0.06);
+      border-color: var(--green);
+    }
+    .modal-btn--accept {
+      background: linear-gradient(135deg, #10b981, #059669);
+      border-color: #10b981;
+      color: white;
+    }
+    .modal-btn--accept:hover {
+      background: linear-gradient(135deg, #059669, #047857);
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useRef, useEffect } = React;
+
+const API_BASE = `http://${window.location.hostname}:8000`;
+
+function streamFetch(url, method, body, onEvent, onDone) {
+  const headers = { "Accept": "text/event-stream" };
+  if (body) headers["Content-Type"] = "application/json";
+  
+  let buffer = "";
+  const decoder = new TextDecoder();
+
+  function parseText(text) {
+    buffer += text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    const blocks = buffer.split("\n\n");
+    buffer = blocks.pop() || "";
+    
+    for (const block of blocks) {
+      if (!block.trim() || block.trimStart().startsWith(":")) continue;
+      
+      let eventName = "message";
+      let dataStr = null;
+      
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event: ")) eventName = line.slice(7).trim();
+        if (line.startsWith("data: ")) dataStr = line.slice(6);
+      }
+      
+      if (dataStr !== null) {
+        try {
+          const parsed = JSON.parse(dataStr);
+          onEvent(eventName, parsed);
+        } catch(e) {
+          onEvent(eventName, dataStr);
+        }
+      }
+    }
+  }
+
+  function readStream(reader) {
+    reader.read().then(result => {
+      if (result.done) {
+        if (onDone) onDone();
+        return;
+      }
+      parseText(decoder.decode(result.value, { stream: true }));
+      readStream(reader);
+    }).catch(err => {
+      console.error("[stream error]", err);
+      if (onDone) onDone();
+    });
+  }
+
+  fetch(url, { method, headers, body: body || null })
+    .then(res => {
+      if (!res.ok || !res.body) {
+        console.error("[fetch] bad response", res.status);
+        if (onDone) onDone();
+        return;
+      }
+      readStream(res.body.getReader());
+    })
+    .catch(err => {
+      console.error("[fetch error]", err);
+      if (onDone) onDone();
+    });
+}
+
+function App() {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [todos, setTodos] = useState([]);
+  const [vfs, setVfs] = useState({});
+  const [hitl, setHitl] = useState(null);
+  const [threadId] = useState(() => Math.random().toString(36).slice(2, 10));
+  const messagesEndRef = useRef(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const addMessage = (msg) => setMessages(prev => [...prev, msg]);
+  
+  const updateLastMessage = (update) => {
+    setMessages(prev => {
+      const last = prev[prev.length - 1];
+      if (last && last.role === 'ai' && last.streaming) {
+        return [...prev.slice(0, -1), { ...last, ...update }];
+      }
+      return prev;
+    });
+  };
+
+  const sendMessage = () => {
+    if (!input.trim() || busy) return;
+    
+    const userMsg = input.trim();
+    setInput("");
+    addMessage({ role: 'user', content: userMsg });
+    setBusy(true);
+
+    addMessage({ role: 'ai', content: '', streaming: true });
+
+    streamFetch(
+      `${API_BASE}/api/medical/stream`,
+      "POST",
+      JSON.stringify({ message: userMsg, thread_id: threadId }),
+      (eventName, data) => {
+        if (data.type === 'token') {
+          updateLastMessage({ content: (messages[messages.length - 1]?.content || '') + data.content });
+        } else if (data.type === 'tool_start') {
+          addMessage({ role: 'tool', phase: 'start', toolName: data.tool, content: JSON.stringify(data.input) });
+        } else if (data.type === 'tool_end') {
+          addMessage({ role: 'tool', phase: 'end', toolName: data.tool, content: data.output });
+        } else if (data.type === 'todos_update') {
+          setTodos(data.todos || []);
+        } else if (data.type === 'vfs_update') {
+          setVfs(data.files || {});
+        } else if (data.type === 'interrupt') {
+          setHitl(data);
+        } else if (data.type === 'error') {
+          addMessage({ role: 'error', content: data.message });
+        } else if (data.type === 'done') {
+          updateLastMessage({ streaming: false });
+        }
+      },
+      () => {
+        setBusy(false);
+        updateLastMessage({ streaming: false });
+      }
+    );
+  };
+
+  const handleHitlChoice = (choice) => {
+    setHitl(null);
+    setBusy(true);
+
+    fetch(`${API_BASE}/api/resume/${threadId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ choice })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.events) {
+        data.events.forEach(evt => {
+          if (evt.type === 'token') addMessage({ role: 'ai', content: evt.content });
+        });
+      }
+      if (data.vfs) setVfs(data.vfs);
+      if (data.todos) setTodos(data.todos);
+      setBusy(false);
+    })
+    .catch(err => {
+      console.error(err);
+      setBusy(false);
+    });
+  };
+
+  const examples = [
+    "I have a persistent headache for 3 days with mild fever and body ache",
+    "Sharp chest pain when breathing deeply, especially on the left side",
+    "Constant fatigue, weight loss, and night sweats for 2 weeks"
+  ];
+
+  return (
+    <div className="app">
+      <header className="header">
+        <div className="brand">
+          <div className="brand-icon">🏥</div>
+          <div className="brand-text">
+            <h1>Medical Research Agent</h1>
+            <p>AI-Powered Diagnosis Assistant with Doctor Review</p>
+          </div>
+        </div>
+        <div className="status">
+          <div className={`status-dot ${busy ? 'status-dot--active' : ''}`}></div>
+          {busy ? 'Researching...' : 'Ready'}
+        </div>
+      </header>
+
+      <div className="main">
+        <div className="chat">
+          <div className="messages">
+            {messages.length === 0 ? (
+              <div className="empty">
+                <div className="empty-icon">🔬</div>
+                <h2>Welcome to Medical Research Agent</h2>
+                <p>
+                  Describe your symptoms and I'll search PubMed for relevant medical research.
+                  A doctor will review my findings before sharing them with you.
+                </p>
+                <div className="empty-examples">
+                  {examples.map((ex, i) => (
+                    <div key={i} className="example" onClick={() => setInput(ex)}>
+                      💬 {ex}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              messages.map((msg, i) => (
+                <Message key={i} msg={msg} />
+              ))
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          <div className="input-area">
+            <div className="input-label">📝 Describe your symptoms</div>
+            <div className="input-row">
+              <div className="input-wrap">
+                <textarea
+                  className="textarea"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      sendMessage();
+                    }
+                  }}
+                  placeholder="Example: I have a severe headache for 3 days with nausea and sensitivity to light..."
+                  disabled={busy}
+                />
+              </div>
+              <button className="send-btn" onClick={sendMessage} disabled={busy || !input.trim()}>
+                {busy ? '⏳ Searching...' : '🔍 Research'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="sidebar">
+          <div className="sidebar-header">📊 Research Status</div>
+          <div className="sidebar-content">
+            <div className="panel">
+              <div className="panel-title">📋 Research Plan</div>
+              {todos.length > 0 ? (
+                <div className="todo-list">
+                  {todos.map((todo, i) => (
+                    <div key={i} className="todo">
+                      <span>✓</span>
+                      <span>{todo}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="panel-empty">No active research plan</div>
+              )}
+            </div>
+
+            <div className="panel">
+              <div className="panel-title">📁 Saved Research</div>
+              {Object.keys(vfs).length > 0 ? (
+                <div className="file-list">
+                  {Object.keys(vfs).map(path => (
+                    <div key={path} className="file">
+                      <span className="file-name">{path}</span>
+                      <span className="file-icon">📄</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="panel-empty">No research files saved yet</div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {hitl && <HITLModal data={hitl} onChoice={handleHitlChoice} />}
+    </div>
+  );
+}
+
+function Message({ msg }) {
+  if (msg.role === 'user') {
+    return (
+      <div className="msg msg--user">
+        <div className="label">Patient Query</div>
+        <div className="content">{msg.content}</div>
+      </div>
+    );
+  }
+  
+  if (msg.role === 'ai') {
+    return (
+      <div className="msg msg--ai">
+        <div className="label">
+          🤖 Medical Agent
+          {msg.streaming && <span> • Researching...</span>}
+        </div>
+        <div className="content">{msg.content}</div>
+      </div>
+    );
+  }
+  
+  if (msg.role === 'tool') {
+    return (
+      <div className="msg msg--tool">
+        <span className="tool-name">⚙️ {msg.toolName}</span>
+        <span className="tool-phase">• {msg.phase === 'start' ? 'running' : 'completed'}</span>
+        {msg.content && <div className="tool-output">{msg.content}</div>}
+      </div>
+    );
+  }
+  
+  if (msg.role === 'error') {
+    return (
+      <div className="msg msg--error">
+        <div className="label">⚠️ Error</div>
+        <div className="content">{msg.content}</div>
+      </div>
+    );
+  }
+  
+  return null;
+}
+
+function HITLModal({ data, onChoice }) {
+  return (
+    <div className="modal" onClick={() => onChoice("skip")}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-icon">👨‍⚕️</div>
+          <div>
+            <div className="modal-title">Doctor Review Required</div>
+            <div className="modal-subtitle">Review research findings</div>
+          </div>
+        </div>
+        
+        <div className="modal-body">
+          <div className="modal-text">
+            {data.research_summary || data.question}
+          </div>
+        </div>
+        
+        <div className="modal-actions">
+          <button 
+            className="modal-btn modal-btn--accept"
+            onClick={() => onChoice("Accept - Information is accurate and relevant")}
+          >
+            ✅ Accept - Approve for patient
+          </button>
+          <button 
+            className="modal-btn"
+            onClick={() => {
+              const feedback = prompt("Please provide feedback on what needs improvement:");
+              if (feedback) onChoice(`Reject - ${feedback}`);
+            }}
+          >
+            ❌ Reject - Request refinement
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.render(<App />, document.getElementById('root'));
+</script>
+</body>
+</html>

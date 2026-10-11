@@ -18,7 +18,7 @@ from langgraph.types import Command
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from agents.deep_agent import DEEP_AGENT, get_todos, get_vfs
+from agents.deep_agent import MEDICAL_AGENT, get_todos, get_vfs, get_feedback_history
 from agents.simple_agent import SIMPLE_AGENT, get_store_snapshot
 
 app = FastAPI(title="DeepAgent Demo — FastAPI (Raw SSE)", version="1.0.0")
@@ -158,12 +158,13 @@ async def stream_simple(req: RunRequest):
     return EventSourceResponse(generator())
 
 
-@app.post("/api/deep/stream")
-async def stream_deep(req: RunRequest):
+@app.post("/api/medical/stream")
+async def stream_medical(req: RunRequest):
+    """Stream the medical research agent - searches PubMed, gets doctor approval."""
     thread_id = req.thread_id or str(uuid.uuid4())
 
     async def generator():
-        async for data in _stream_agent(DEEP_AGENT, req.message, thread_id):
+        async for data in _stream_agent(MEDICAL_AGENT, req.message, thread_id):
             yield {"data": data}
 
     return EventSourceResponse(generator())
@@ -171,12 +172,12 @@ async def stream_deep(req: RunRequest):
 
 @app.post("/api/resume/{thread_id}")
 async def resume_thread(thread_id: str, req: ResumeRequest):
-    """Resume an interrupted deep agent thread with a human choice."""
+    """Resume an interrupted medical agent thread with doctor's decision."""
     config = {"configurable": {"thread_id": thread_id}}
 
     events = []
     try:
-        async for event in DEEP_AGENT.astream_events(
+        async for event in MEDICAL_AGENT.astream_events(
             Command(resume=req.choice), config=config, version="v2"
         ):
             name = event.get("event", "")
@@ -194,18 +195,26 @@ async def resume_thread(thread_id: str, req: ResumeRequest):
 
     vfs = get_vfs(thread_id)
     todos = get_todos(thread_id)
+    feedback = get_feedback_history(thread_id)
     return {
         "status": "resumed",
         "thread_id": thread_id,
         "events": events,
         "vfs": vfs,
         "todos": todos,
+        "feedback_count": len(feedback),
     }
 
 
 @app.get("/api/threads/{thread_id}/vfs")
 async def get_thread_vfs(thread_id: str):
     return {"thread_id": thread_id, "files": get_vfs(thread_id)}
+
+
+@app.get("/api/threads/{thread_id}/feedback")
+async def get_thread_feedback(thread_id: str):
+    """Get doctor feedback history for learning/analytics."""
+    return {"thread_id": thread_id, "feedback_history": get_feedback_history(thread_id)}
 
 
 @app.get("/api/threads/{thread_id}/todos")
@@ -232,7 +241,8 @@ async def presentation():
 
 @app.get("/")
 async def index():
-    return FileResponse(FRONTEND_DIR / "index.html")
+    """Redirect to medical UI by default."""
+    return FileResponse(FRONTEND_DIR / "medical.html")
 
 
 if __name__ == "__main__":

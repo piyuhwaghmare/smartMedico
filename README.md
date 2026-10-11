@@ -1,6 +1,6 @@
-# langgraph-agent-patterns
+# Medical Diagnosis Research Agent
 
-A proof-of-concept comparing two approaches to serving LangGraph agents over HTTP: **raw FastAPI SSE** with a hand-rolled event schema, and the **Aegra-style LangGraph Platform REST API**. Features a simple ReAct agent with an in-memory data store, and a Deep Agent with a virtual file system, todo-based planning, specialized LLM skills, and human-in-the-loop interrupts — all streaming live to a React UI backed by local Ollama models.
+An AI-powered medical research assistant that helps users find relevant medical information from PubMed and other medical databases. Features doctor review (Human-in-the-Loop), feedback-based refinement, and learning from doctor decisions over time. Built on LangGraph with streaming responses and persistent memory.
 
 ---
 
@@ -8,13 +8,14 @@ A proof-of-concept comparing two approaches to serving LangGraph agents over HTT
 
 | Component | Description |
 |-----------|-------------|
-| **Simple Agent** | `create_react_agent` + KV store tools. Demonstrates the minimal LangGraph pattern. |
-| **Deep Agent** | Custom `StateGraph` with VFS, todo planning, sub-LLM skills, and HITL interrupt. |
-| **Skills** | `analyze_data` (qwen3:8b), `write_code` (qwen2.5-coder:14b), `search_knowledge` — each skill runs its own LLM in isolation. |
-| **FastAPI server** | Port 8000. Raw SSE, custom `data.type` event schema. |
-| **Aegra server** | Port 8001. LangGraph Platform REST spec — typed `event:` SSE headers, `/threads`, `/runs/stream`. |
-| **React GUI** | CDN-only (no build step). Token streaming, tool spinners, VFS file browser, HITL modal. |
-| **Presentation** | Reveal.js deck — architecture, patterns, platform integration. |
+| **Medical Research Agent** | AI agent that searches PubMed and medical databases for symptom/disease information |
+| **Doctor Review (HITL)** | Human-in-the-Loop approval system where doctors Accept/Reject research findings |
+| **Feedback Loop** | When rejected, agent refines search based on doctor's feedback and tries again |
+| **Learning System** | Tracks doctor decisions over time to improve future searches |
+| **PubMed Integration** | Searches medical literature using PubMed API |
+| **RAG Fallback** | Uses local medical knowledge base when web sources insufficient (to be integrated) |
+| **FastAPI Server** | Port 8000. Streaming SSE responses with real-time updates |
+| **React Medical UI** | Clean interface for entering symptoms, viewing research, and doctor review |
 
 ---
 
