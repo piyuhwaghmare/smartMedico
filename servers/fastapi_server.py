@@ -18,8 +18,12 @@ from langgraph.types import Command
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from agents.deep_agent import MEDICAL_AGENT, get_todos, get_vfs, get_feedback_history
+from agents.deep_agent import MEDICAL_AGENT as OLD_DEEP_AGENT, get_todos, get_vfs
+from agents.medical_agent import MEDICAL_AGENT, get_search_results, get_approved_results, get_feedback_history
 from agents.simple_agent import SIMPLE_AGENT, get_store_snapshot
+
+# Keep backward compatibility
+DEEP_AGENT = OLD_DEEP_AGENT
 
 app = FastAPI(title="DeepAgent Demo — FastAPI (Raw SSE)", version="1.0.0")
 

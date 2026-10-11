@@ -392,7 +392,8 @@
 <script type="text/babel">
 const { useState, useRef, useEffect } = React;
 
-const API_BASE = `http://${window.location.hostname}:8000`;
+// In Codespaces, use current origin without explicit port
+const API_BASE = window.location.origin;
 
 function streamFetch(url, method, body, onEvent, onDone) {
   const headers = { "Accept": "text/event-stream" };
@@ -750,7 +751,7 @@ function HITLModal({ data, onChoice }) {
   );
 }
 
-ReactDOM.render(<App />, document.getElementById('root'));
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </script>
 </body>
 </html>

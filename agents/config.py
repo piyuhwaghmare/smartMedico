@@ -1,10 +1,11 @@
 from langchain_ollama import ChatOllama
 
-OLLAMA_BASE_URL = "http://10.0.0.224:11434"
+OLLAMA_BASE_URL = "http://localhost:11434"
 
-MODEL_GENERAL = "qwen3:8b"
-MODEL_CODE = "qwen2.5-coder:14b"
-MODEL_FAST = "llama3.1:8b"
+# Using your downloaded models
+MODEL_GENERAL = "ministral-3:3b"      # For general reasoning and medical queries
+MODEL_CODE = "qwen2.5-coder:3b"       # For code generation if needed
+MODEL_FAST = "qwen2.5:1.5b"           # For quick responses
 
 
 def make_llm(model: str = MODEL_GENERAL, temperature: float = 0.1) -> ChatOllama:

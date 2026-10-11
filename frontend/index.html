@@ -574,7 +574,22 @@ const SERVERS = {
   fastapi: { label: "FastAPI", port: 8000 },
   aegra:   { label: "Aegra",   port: 8001 },
 };
-const base = (mode) => `http://${window.location.hostname}:${SERVERS[mode].port}`;
+
+// In Codespaces, detect if we're in a tunneled environment
+const isCodespaces = window.location.hostname.includes('app.github.dev');
+
+const base = (mode) => {
+  if (isCodespaces) {
+    // In Codespaces, ports are exposed as separate subdomains
+    // Replace the port number in the hostname
+    const currentPort = window.location.hostname.match(/-(\d+)\.app\.github\.dev/)?.[1] || '8000';
+    const targetPort = SERVERS[mode].port;
+    return window.location.origin.replace(`-${currentPort}.`, `-${targetPort}.`);
+  } else {
+    // Local development: use explicit ports
+    return `${window.location.protocol}//${window.location.hostname}:${SERVERS[mode].port}`;
+  }
+};
 
 /*
  * streamFetch — fetch + ReadableStream SSE reader.
