@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Doctor Dashboard - Review Patient Queries</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .header {
+      background: white;
+      padding: 20px 30px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    h1 { color: #667eea; font-size: 24px; }
+    .subtitle { color: #666; margin-top: 5px; }
+    .pending-reviews {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .review-card {
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      background: #fafafa;
+    }
+    .patient-query {
+      background: #fff3cd;
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+      border-left: 4px solid #ffc107;
+    }
+    .ai-response {
+      background: #d1ecf1;
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+      border-left: 4px solid #17a2b8;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    .btn-approve {
+      background: #28a745;
+      color: white;
+    }
+    .btn-approve:hover { background: #218838; }
+    .btn-reject {
+      background: #dc3545;
+      color: white;
+    }
+    .btn-reject:hover { background: #c82333; }
+    .feedback-box {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+    .sources {
+      font-size: 12px;
+      color: #666;
+      margin-top: 10px;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #999;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-left: 8px;
+    }
+    .badge-pending { background: #ffc107; color: #000; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🩺 Doctor Dashboard</h1>
+      <div class="subtitle">Review AI-generated medical information before patient viewing</div>
+    </div>
+
+    <div class="pending-reviews">
+      <h2>Pending Reviews <span class="badge badge-pending" id="count">0</span></h2>
+      <div id="reviews-container">
+        <div class="empty-state">
+          <p>✅ No pending reviews</p>
+          <p style="margin-top:10px; font-size:14px;">Waiting for patient queries...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Poll server for pending reviews every 2 seconds
+    setInterval(fetchPendingReviews, 2000);
+    fetchPendingReviews();
+
+    async function fetchPendingReviews() {
+      try {
+        const response = await fetch('/api/doctor/pending');
+        const data = await response.json();
+        
+        document.getElementById('count').textContent = data.pending.length;
+        
+        const container = document.getElementById('reviews-container');
+        
+        if (data.pending.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <p>✅ No pending reviews</p>
+              <p style="margin-top:10px; font-size:14px;">Waiting for patient queries...</p>
+            </div>
+          `;
+          return;
+        }
+        
+        container.innerHTML = data.pending.map(review => `
+          <div class="review-card">
+            <div class="patient-query">
+              <strong>Patient Query:</strong><br>
+              ${review.query}
+            </div>
+            
+            <div class="ai-response">
+              <strong>AI Analysis:</strong><br>
+              ${review.ai_summary.replace(/\n/g, '<br>')}
+            </div>
+            
+            <div class="sources">
+              <strong>Sources:</strong> ${review.sources}
+            </div>
+            
+            <div class="actions">
+              <button class="btn-approve" onclick="approve('${review.thread_id}')">
+                ✅ Approve
+              </button>
+              <button class="btn-reject" onclick="showRejectForm('${review.thread_id}')">
+                ❌ Reject
+              </button>
+            </div>
+            
+            <div id="reject-form-${review.thread_id}" style="display:none; margin-top:15px;">
+              <textarea class="feedback-box" id="feedback-${review.thread_id}" 
+                placeholder="Why are you rejecting? (Agent will search again with this feedback)"></textarea>
+              <button class="btn-reject" style="margin-top:10px;" onclick="reject('${review.thread_id}')">
+                Submit Rejection
+              </button>
+            </div>
+          </div>
+        `).join('');
+        
+      } catch (err) {
+        console.error('Error fetching reviews:', err);
+      }
+    }
+
+    function showRejectForm(threadId) {
+      document.getElementById(`reject-form-${threadId}`).style.display = 'block';
+    }
+
+    async function approve(threadId) {
+      try {
+        await fetch(`/api/doctor/approve/${threadId}`, { method: 'POST' });
+        alert('✅ Approved! Patient can now view the information.');
+        fetchPendingReviews();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    async function reject(threadId) {
+      const feedback = document.getElementById(`feedback-${threadId}`).value;
+      if (!feedback) {
+        alert('Please provide feedback for rejection');
+        return;
+      }
+      
+      try {
+        await fetch(`/api/doctor/reject/${threadId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ feedback })
+        });
+        alert('❌ Rejected. Agent will search again with your feedback.');
+        fetchPendingReviews();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+  </script>
+</body>
+</html>

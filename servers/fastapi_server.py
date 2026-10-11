@@ -9,6 +9,10 @@ No standard contract — tight coupling between server and client.
 import json
 import uuid
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,12 +22,10 @@ from langgraph.types import Command
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from agents.deep_agent import MEDICAL_AGENT as OLD_DEEP_AGENT, get_todos, get_vfs
-from agents.medical_agent import MEDICAL_AGENT, get_search_results, get_approved_results, get_feedback_history
-from agents.simple_agent import SIMPLE_AGENT, get_store_snapshot
+from agents.medical_rag import MEDICAL_AGENT, get_search_results, get_approved_results, get_feedback_history
 
-# Keep backward compatibility
-DEEP_AGENT = OLD_DEEP_AGENT
+# Doctor review queue
+pending_reviews = {}  # thread_id -> {query, ai_summary, sources, timestamp}
 
 app = FastAPI(title="DeepAgent Demo — FastAPI (Raw SSE)", version="1.0.0")
 
@@ -151,25 +153,86 @@ async def test_stream():
     return EventSourceResponse(generator())
 
 
-@app.post("/api/simple/stream")
-async def stream_simple(req: RunRequest):
-    thread_id = req.thread_id or str(uuid.uuid4())
-
-    async def generator():
-        async for data in _stream_agent(SIMPLE_AGENT, req.message, thread_id):
-            yield {"data": data}
-
-    return EventSourceResponse(generator())
-
-
 @app.post("/api/medical/stream")
 async def stream_medical(req: RunRequest):
-    """Stream the medical research agent - searches PubMed, gets doctor approval."""
+    """Stream the RAG-powered medical agent - searches multiple sources, uses vector DB + LLM"""
     thread_id = req.thread_id or str(uuid.uuid4())
+    
+    config = {"configurable": {"thread_id": thread_id}}
+    
+    # State for RAG agent
+    inputs = {
+        "messages": [{"role": "user", "content": req.message}],
+        "query": req.message,
+        "raw_documents": [],
+        "llm_summary": "",
+        "search_done": False,
+        "synthesis_done": False,
+    }
 
     async def generator():
-        async for data in _stream_agent(MEDICAL_AGENT, req.message, thread_id):
-            yield {"data": data}
+        try:
+            # Stream all events from RAG agent
+            async for event in MEDICAL_AGENT.astream_events(inputs, config=config, version="v2"):
+                name = event.get("event", "")
+                data = event.get("data", {})
+                node_name = event.get("name", "")
+
+                # Stream node outputs (search, synthesize, approve)
+                if name == "on_chain_end" and node_name in ("search", "synthesize", "approve"):
+                    output = data.get("output", {})
+                    messages = output.get("messages", [])
+                    if messages:
+                        last_msg = messages[-1]
+                        content = getattr(last_msg, "content", str(last_msg))
+                        if content:
+                            yield {"data": json.dumps({"type": "token", "content": content})}
+
+        except Exception as exc:
+            error_type = type(exc).__name__
+            
+            # Handle HITL interrupt (doctor approval)
+            if "GraphInterrupt" in error_type or "interrupt" in str(exc).lower():
+                try:
+                    payload = exc.args[0] if exc.args else {}
+                    
+                    if isinstance(payload, (list, tuple)) and payload:
+                        interrupt_val = payload[0].value if hasattr(payload[0], "value") else payload[0]
+                    else:
+                        interrupt_val = payload
+                    
+                    # ADD TO DOCTOR PENDING QUEUE
+                    if isinstance(interrupt_val, dict):
+                        pending_reviews[thread_id] = {
+                            "thread_id": thread_id,
+                            "query": req.message,
+                            "ai_summary": interrupt_val.get("findings", ""),
+                            "sources": interrupt_val.get("sources", ""),
+                            "timestamp": __import__("time").time()
+                        }
+                        print(f"[HITL] Added to doctor queue: {thread_id}")
+                    
+                    # Tell patient to wait for doctor
+                    yield {"data": json.dumps({
+                        "type": "token",
+                        "content": "\n\n⏳ **Awaiting Doctor Approval**\n\nYour query has been sent to a medical professional for review. Please wait..."
+                    })}
+                    yield {"data": json.dumps({"type": "done"})}
+                    
+                except Exception as e:
+                    print(f"Interrupt parsing error: {e}")
+                    import traceback
+                    traceback.print_exc()
+                return
+
+            # Other errors
+            print(f"Stream error ({error_type}): {exc}")
+            import traceback
+            traceback.print_exc()
+            yield {"data": json.dumps({"type": "error", "message": f"{error_type}: {str(exc)}"})}
+            return
+
+        yield {"data": json.dumps({"type": "done"})}
 
     return EventSourceResponse(generator())
 
@@ -223,19 +286,185 @@ async def get_thread_feedback(thread_id: str):
 
 @app.get("/api/threads/{thread_id}/todos")
 async def get_thread_todos(thread_id: str):
-    return {"thread_id": thread_id, "todos": get_todos(thread_id)}
-
-
-@app.get("/api/store")
-async def get_simple_store():
-    return {"store": get_store_snapshot()}
+    return {"thread_id": thread_id, "todos": []}
 
 
 # ── Static Files ──────────────────────────────────────────────────────────────
 
+@app.get("/doctor")
+async def doctor_dashboard():
+    """Doctor dashboard page"""
+    return FileResponse(FRONTEND_DIR / "doctor.html")
+
+
+@app.get("/api/doctor/pending")
+async def get_pending_reviews():
+    """Get all pending reviews for doctor"""
+    return {"pending": list(pending_reviews.values())}
+
+
+@app.get("/api/patient/status/{thread_id}")
+async def get_patient_status(thread_id: str):
+    """Check if doctor has responded - for patient polling"""
+    print(f"[STATUS CHECK] Thread {thread_id}")
+    
+    # Still pending doctor review
+    if thread_id in pending_reviews:
+        return {
+            "status": "pending",
+            "message": "Waiting for doctor review"
+        }
+    
+    # Check if there's a completed result in the graph state
+    config = {"configurable": {"thread_id": thread_id}}
+    try:
+        state = MEDICAL_AGENT.get_state(config)
+        messages = state.values.get("messages", [])
+        
+        if messages:
+            # Get the last message
+            last_msg = messages[-1]
+            content = getattr(last_msg, "content", str(last_msg))
+            
+            # Check if it's an approval or rejection message
+            if "DOCTOR APPROVED" in content or "Doctor feedback" in content:
+                print(f"[STATUS CHECK] Thread {thread_id} completed")
+                return {
+                    "status": "completed",
+                    "result": content
+                }
+        
+        # If no clear result yet, still waiting
+        return {
+            "status": "pending",
+            "message": "Processing..."
+        }
+        
+    except Exception as e:
+        print(f"[STATUS CHECK ERROR] {e}")
+        return {
+            "status": "unknown",
+            "message": "Could not retrieve status"
+        }
+
+
+@app.post("/api/doctor/approve/{thread_id}")
+async def approve_review(thread_id: str):
+    """Doctor approves the AI response - properly resumes the graph"""
+    if thread_id not in pending_reviews:
+        return {"status": "not_found", "message": "No pending review for this thread"}
+    
+    review_data = pending_reviews[thread_id]
+    config = {"configurable": {"thread_id": thread_id}}
+    
+    print(f"[APPROVE] Doctor approving thread {thread_id}")
+    
+    try:
+        # Resume the graph with approval using Command
+        result_messages = []
+        async for event in MEDICAL_AGENT.astream_events(
+            Command(resume="✅ Approve - Information is accurate"),
+            config=config,
+            version="v2"
+        ):
+            name = event.get("event", "")
+            data = event.get("data", {})
+            node_name = event.get("name", "")
+            
+            # Capture node outputs
+            if name == "on_chain_end" and node_name in ("approve",):
+                output = data.get("output", {})
+                messages = output.get("messages", [])
+                if messages:
+                    last_msg = messages[-1]
+                    content = getattr(last_msg, "content", str(last_msg))
+                    if content:
+                        result_messages.append(content)
+                        print(f"[APPROVE] Result: {content[:100]}...")
+        
+        # Remove from pending queue
+        del pending_reviews[thread_id]
+        
+        print(f"[APPROVE] ✅ Thread {thread_id} approved and resumed")
+        
+        return {
+            "status": "approved",
+            "thread_id": thread_id,
+            "result": result_messages
+        }
+    except Exception as e:
+        print(f"[APPROVE ERROR] {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"status": "error", "message": str(e)}
+
+
+@app.post("/api/doctor/reject/{thread_id}")
+async def reject_review(thread_id: str, feedback: dict):
+    """Doctor rejects with feedback - properly resumes the graph"""
+    if thread_id not in pending_reviews:
+        return {"status": "not_found", "message": "No pending review for this thread"}
+    
+    review_data = pending_reviews[thread_id]
+    config = {"configurable": {"thread_id": thread_id}}
+    feedback_text = feedback.get("feedback", "Needs improvement")
+    
+    print(f"[REJECT] Doctor rejecting thread {thread_id} with feedback: {feedback_text}")
+    
+    try:
+        # Resume the graph with rejection using Command
+        result_messages = []
+        async for event in MEDICAL_AGENT.astream_events(
+            Command(resume=f"❌ Reject - {feedback_text}"),
+            config=config,
+            version="v2"
+        ):
+            name = event.get("event", "")
+            data = event.get("data", {})
+            node_name = event.get("name", "")
+            
+            # Capture node outputs
+            if name == "on_chain_end" and node_name in ("approve",):
+                output = data.get("output", {})
+                messages = output.get("messages", [])
+                if messages:
+                    last_msg = messages[-1]
+                    content = getattr(last_msg, "content", str(last_msg))
+                    if content:
+                        result_messages.append(content)
+                        print(f"[REJECT] Result: {content[:100]}...")
+        
+        # Remove from pending queue
+        del pending_reviews[thread_id]
+        
+        print(f"[REJECT] ✅ Thread {thread_id} rejected and resumed")
+        
+        return {
+            "status": "rejected",
+            "thread_id": thread_id,
+            "feedback": feedback_text,
+            "result": result_messages
+        }
+    except Exception as e:
+        print(f"[REJECT ERROR] {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"status": "error", "message": str(e)}
+
+
 @app.get("/test")
 async def test_page():
     return FileResponse(FRONTEND_DIR / "test.html")
+
+
+@app.get("/medical.html")
+async def medical_page():
+    return FileResponse(FRONTEND_DIR / "medical.html")
+
+
+@app.get("/medical")
+async def medical_page_alt():
+    return FileResponse(FRONTEND_DIR / "medical.html")
 
 
 @app.get("/presentation")
