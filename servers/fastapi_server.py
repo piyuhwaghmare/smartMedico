@@ -16,13 +16,12 @@ load_dotenv()
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from langgraph.types import Command
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from agents.medical_rag import MEDICAL_AGENT, get_search_results, get_approved_results, get_feedback_history
+from agents.deep_agent import MEDICAL_AGENT, get_todos, get_vfs, get_feedback_history
 
 # Doctor review queue
 pending_reviews = {}  # thread_id -> {query, ai_summary, sources, timestamp}
@@ -286,7 +285,7 @@ async def get_thread_feedback(thread_id: str):
 
 @app.get("/api/threads/{thread_id}/todos")
 async def get_thread_todos(thread_id: str):
-    return {"thread_id": thread_id, "todos": []}
+    return {"thread_id": thread_id, "todos": get_todos(thread_id)}
 
 
 # ── Static Files ──────────────────────────────────────────────────────────────

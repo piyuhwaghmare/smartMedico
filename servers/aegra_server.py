@@ -25,7 +25,7 @@ from langgraph.types import Command
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
-from agents.deep_agent import DEEP_AGENT, get_todos, get_vfs
+from agents.deep_agent import MEDICAL_AGENT as DEEP_AGENT, get_todos, get_vfs
 from agents.simple_agent import SIMPLE_AGENT
 
 app = FastAPI(title="Aegra-style LangGraph Platform API", version="1.0.0")
